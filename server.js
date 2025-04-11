@@ -1,14 +1,13 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const plantRouter = require('./routes/plant');
+
 const app = express();
 // const iotRoutes = require('./routes/iot');
 
 app.use(cors());
 app.use(express.json());
 
-app.use('/api/plant', plantRouter);
 
 // app.use('/iot', iotRoutes);
 app.use('/api/auth', require('./routes/auth'));
