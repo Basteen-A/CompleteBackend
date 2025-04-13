@@ -1,17 +1,39 @@
 const express = require('express');
 const router = express.Router();
-// Assuming MQTT for IoT communication
 const mqtt = require('mqtt');
-const client = mqtt.connect('mqtt://YOUR_MQTT_BROKER'); // Replace with your MQTT broker URL
+
+// MQTT client connection
+const client = mqtt.connect('mqtts://ace77fd7972643408254260884cc22e4.s1.eu.hivemq.cloud:8883', {
+  username: 'hivemq.webclient.1744534432607',
+  password: 'Ob,!F2XhlVv8B*Wm3&7u'
+});
 
 client.on('connect', () => {
-  console.log('Connected to MQTT broker');
+  console.log('[MQTT] Connected to broker');
   client.subscribe('iot/signal', (err) => {
-    if (err) console.error('Subscription error:', err);
+    if (err) console.error('[MQTT] Subscription error:', err);
+    else console.log('[MQTT] Subscribed to topic: iot/signal');
   });
 });
 
-// Handle IoT signal requests
+client.on('error', (err) => {
+  console.error('[MQTT] Connection error:', err.message);
+});
+
+// Listen for messages on subscribed topics
+client.on('message', (topic, message) => {
+  if (topic === 'iot/signal') {
+    try {
+      const { billId, action } = JSON.parse(message.toString());
+      console.log(`[MQTT] Received - Bill ID: ${billId}, Action: ${action}`);
+      // Optional: Add DB logic or notifications here
+    } catch (e) {
+      console.error('[MQTT] Message parse error:', e.message);
+    }
+  }
+});
+
+// API endpoint to send IoT signal via MQTT
 router.post('/signal', (req, res) => {
   const { billId, action } = req.body;
 
@@ -19,24 +41,22 @@ router.post('/signal', (req, res) => {
     return res.status(400).json({ message: 'Bill ID and action are required' });
   }
 
+  const validActions = ['start', 'stop'];
+  if (!validActions.includes(action)) {
+    return res.status(400).json({ message: 'Invalid action. Use "start" or "stop"' });
+  }
+
   const message = JSON.stringify({ billId, action });
+
   client.publish('iot/signal', message, (err) => {
     if (err) {
-      console.error('Error publishing MQTT message:', err);
+      console.error('[MQTT] Publish error:', err.message);
       return res.status(500).json({ message: 'Failed to send IoT signal' });
     }
-    console.log(`IoT Signal - Bill ID: ${billId}, Action: ${action}`);
-    res.json({ success: true });
-  });
-});
 
-// Handle count increments from ESP32
-client.on('message', (topic, message) => {
-  if (topic === 'count/increment') {
-    const { billId } = JSON.parse(message.toString());
-    // Update count in database or notify frontend via WebSocket (if implemented)
-    console.log(`Count increment received for Bill ID: ${billId}`);
-  }
+    console.log(`[MQTT] Published - Bill ID: ${billId}, Action: ${action}`);
+    return res.json({ success: true, billId, action });
+  });
 });
 
 module.exports = router;
